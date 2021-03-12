@@ -21,7 +21,16 @@ private object UserSQL {
     WHERE LEGAL_ID = $legalId
   """.query[User]
 
-  def delete(legalId: String): Update0 = sql"""
+  def updateU(legalId: String,user: User): Update0 = sql"""
+    UPDATE USERS
+    SET FIRST_NAME = ${user.firstName},
+    LAST_NAME = ${user.lastName},
+    EMAIL = ${user.email},
+    PHONE = ${user.phone}
+    WHERE LEGAL_ID = $legalId
+       """.update
+
+  def deleteU(legalId: String): Update0 = sql"""
     DELETE
     FROM USERS
     WHERE LEGAL_ID = $legalId
@@ -38,7 +47,14 @@ class DoobieUserRepositoryInterpreter[F[_]: Bracket[?[_], Throwable]](val xa: Tr
 
   def findByLegalId(legalId: String): OptionT[F, User] = OptionT(selectByLegalId(legalId).option.transact(xa))
 
-  def deleteByLegalId(legalId: String): F[Unit] = delete(legalId).run.void.transact(xa)
+  def update(user: User): OptionT[F, User] =
+    findByLegalId(user.legalId).semiflatMap(id => UserSQL.updateU(user.legalId,user).run.transact(xa).as(user))
+//  OptionT.fromOption[F](Option(user.legalId)).semiflatMap { id =>
+  //  UserSQL.updateU(id,user).run.transact(xa).as(user)
+//  }
+
+  def delete(legalId: String) : OptionT[F, User] =
+    findByLegalId(legalId).semiflatMap(user => UserSQL.deleteU(legalId).run.transact(xa).as(user))
 
 }
 

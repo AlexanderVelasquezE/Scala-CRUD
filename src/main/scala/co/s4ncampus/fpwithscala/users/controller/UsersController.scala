@@ -15,14 +15,6 @@ class UsersController[F[_]: Sync] extends Http4sDsl[F] {
 
     implicit val userDecoder: EntityDecoder[F, User] = jsonOf
 
-
-    private def readUser(userService: UserService[F]): HttpRoutes[F] =
-        HttpRoutes.of[F] {
-            case GET -> Root / id =>
-                val action = userService.read(id).value
-                Ok(action)
-        }
-
     private def createUser(userService: UserService[F]): HttpRoutes[F] = 
         HttpRoutes.of[F] {
             case req @ POST -> Root =>
@@ -37,17 +29,44 @@ class UsersController[F[_]: Sync] extends Http4sDsl[F] {
                 }
         }
 
+    private def readUser(userService: UserService[F]): HttpRoutes[F] =
+        HttpRoutes.of[F] {
+            case GET -> Root / legalId =>
+                val action = userService.read(legalId).value
+                Ok(action)
+        }
+
+    private def updateUser(userService: UserService[F]): HttpRoutes[F] = {
+        HttpRoutes.of[F] {
+            case req@ PUT -> Root / legalId =>
+                val action = for {
+                    user <- req.as[User]
+                    updated = user.copy(legalId = legalId)
+                    result <- userService.update(updated).value
+                } yield result
+
+                action.flatMap {
+                    case Some(user) => Ok(user)
+                    case None => NotFound("User not found")
+                }
+        }
+    }
 
     private def deleteUser(userService: UserService[F]): HttpRoutes[F] =
         HttpRoutes.of[F] {
-            case DELETE -> Root / "users" / id =>
-                val action = userService.delete(id)
-                Ok(action)
+            case DELETE -> Root / legalId =>
+                val action = for {
+                    result <- userService.delete(legalId).value
+                } yield result
+                action.flatMap {
+                    case Some(user) => Ok(user)
+                    case None => NotFound("User not found")
+                }
         }
 
     def endpoints(userService: UserService[F]): HttpRoutes[F] = {
         //To combine routes use the function `<+>`
-        createUser(userService) <+> readUser(userService) <+> deleteUser(userService)
+        createUser(userService) <+> readUser(userService) <+> deleteUser(userService) <+> updateUser(userService)
     }
 
 }
